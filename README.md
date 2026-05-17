@@ -1,349 +1,267 @@
-# 仓储物流机器人视觉导航系统
+# 仓储机器人视觉导航系统
 
-> ROS 2 Humble + Gazebo + Cartographer + RTAB-Map + Nav2
+这是一个基于 ROS 2 的仓储机器人仿真项目，用于完成建图、定位、自主导航和动态避障等流程。项目集成 Gazebo、Cartographer、RTAB-Map、AMCL 和 Nav2，覆盖从传感器数据发布到多目标点导航的完整仿真闭环。
 
-在 Gazebo 中构建仓储场景，机器人完成 2D/3D 建图、AMCL 定位、Nav2 自主导航与动态避障的完整闭环。
+## 功能特性
 
-```
-环境感知 → 2D/3D 建图 → 地图保存 → AMCL 定位 → 路径规划 → 自主导航 + 动态避障
-```
+- 仓储物流仿真场景，包含货架、通道和动态叉车障碍
+- 差速驱动机器人模型，搭载 LiDAR、RGB-D 相机、IMU 和里程计
+- 基于 Cartographer 的 2D SLAM 建图
+- 基于 RTAB-Map 的可选 3D 建图
+- 基于 AMCL 的地图加载与定位
+- 基于 Nav2 的路径规划和自主导航
+- 多目标点导航示例
+- SLAM 和导航专用 RViz 配置
 
-## 环境搭建（一次性）
+## 运行环境
 
-### 1. 本地 Mac 准备
+- Ubuntu 22.04
+- ROS 2 Humble
+- Gazebo Classic
+- Python 3.10+
+- 推荐内存：2D 建图和导航建议 8 GB 以上，RTAB-Map 建议 16 GB 以上
 
-```bash
-# 生成 SSH 密钥（如已有可跳过）
-ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-
-# VS Code SSH Config（~/.ssh/config）
-Host autodl
-    HostName connect.westb.seetacloud.com
-    Port <你的端口>
-    User root
-    IdentityFile ~/.ssh/id_ed25519
-    StrictHostKeyChecking no
-```
-
-### 2. 上传项目到 AutoDL
+建议将项目放在 ROS 2 工作空间中，例如：
 
 ```bash
-ssh-copy-id -p <端口> root@<实例IP>          # 或手动复制公钥到 ~/.ssh/authorized_keys
-scp -r project/ autodl:~/warehouse_ws/src/   # 上传项目文件
+warehouse_ws/
+└── src/
+    └── project/
 ```
 
-### 3. 在 AutoDL 上一键安装（约 30-60 分钟）
+## 安装依赖
+
+请先安装 ROS 2 Humble，然后安装主要运行依赖：
 
 ```bash
-ssh autodl
-cd ~/warehouse_ws/src/project
-bash scripts/setup_autodl.sh
+sudo apt update
+sudo apt install -y \
+  ros-humble-gazebo-ros-pkgs \
+  ros-humble-xacro \
+  ros-humble-robot-state-publisher \
+  ros-humble-joint-state-publisher \
+  ros-humble-teleop-twist-keyboard \
+  ros-humble-cartographer \
+  ros-humble-cartographer-ros \
+  ros-humble-navigation2 \
+  ros-humble-nav2-bringup \
+  ros-humble-rtabmap-ros
 ```
 
-> 脚本会自动：换清华镜像源 → 安装 ROS 2 Humble + Gazebo + Cartographer + RTAB-Map + Nav2 → 编译工作空间 → 配置 `ros2env` 环境函数
-
-## 每次使用前
+也可以在工作空间根目录使用 `rosdep` 安装包依赖：
 
 ```bash
-ros2env      # 每个新终端都要先执行（自动退出 conda + 加载 ROS + 加载工作空间）
+cd ~/warehouse_ws
+rosdep install --from-paths src --ignore-src -r -y
 ```
 
-> 忘记执行 `ros2env` 会报 `GLIBCXX_3.4.30 not found`，是 conda 的 libstdc++ 太旧导致的。
+## 编译项目
 
-## 启动仿真环境
+将本仓库克隆或复制到 ROS 2 工作空间的 `src` 目录：
 
 ```bash
-ros2env
+mkdir -p ~/warehouse_ws/src
+cd ~/warehouse_ws/src
+git clone <repository-url> project
+
+cd ~/warehouse_ws
+colcon build --symlink-install
+source install/setup.bash
+```
+
+如果使用 conda 并遇到 `GLIBCXX` 相关错误，请先退出 conda 环境：
+
+```bash
+conda deactivate
+source /opt/ros/humble/setup.bash
+source ~/warehouse_ws/install/setup.bash
+```
+
+## 快速开始
+
+启动 Gazebo 仓储场景和机器人：
+
+```bash
+source ~/warehouse_ws/install/setup.bash
 ros2 launch project spawn.launch.py
-# 等待看到 "spawn_entity.py: process has finished cleanly" 表示 Gazebo + 机器人已就绪
 ```
 
-此时只是启动了仿真世界、机器人模型、传感器和里程计。机器人可以被遥控，`/scan`、`/odom`、相机等话题也会发布，但还不会生成 `/map`，也不能保存建图结果。
+等待机器人成功加载后，打开新终端进行键盘遥控：
 
-| 传感器 | 话题 | 帧 |
-|--------|------|-----|
+```bash
+source ~/warehouse_ws/install/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
+
+主要传感器和状态话题如下：
+
+| 传感器 / 状态 | 话题 | 坐标系 |
+| --- | --- | --- |
 | 2D LiDAR | `/scan` | `laser_link` |
 | RGB 相机 | `/camera/rgb/image_raw` | `camera_rgbd_link` |
 | 深度相机 | `/camera/depth/image_raw` | `camera_rgbd_link` |
 | IMU | `/imu` | `imu_link` |
-| 轮式里程计 | `/odom` | `odom` → `base_footprint` |
+| 轮式里程计 | `/odom` | `odom -> base_footprint` |
 
-## 遥控机器人
+## 2D SLAM 建图
 
-```bash
-ros2env
-ros2 run teleop_twist_keyboard teleop_twist_keyboard
-```
-
-如果只是验证机器人能不能运动，可以只启动 Gazebo 后直接遥控；如果目标是建图，必须同时启动下面的 SLAM。
-
-```
-u    i    o      i = 前进      , = 后退
-j    k    l      j = 左转      l = 右转
-m    ,    .      u = 左前      o = 右前
-                 m = 左后      . = 右后
-                 k = 停止
-
-q/z : 增减最大速度 10%
-w/x : 增减线速度 10%
-e/c : 增减角速度 10%
-```
-
-**按键没反应？**
-
-1. 点击终端窗口使其获得焦点（VS Code 中要点对应终端 Tab）
-2. 另开终端执行 `ros2 topic echo /cmd_vel`，按 `i` 看是否有 `linear: x: 0.5` — 有数据 = 键盘正常
-3. 确认 Gazebo 终端已看到 `spawn_entity.py: process has finished cleanly`
-4. 直接用命令测试：`ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.3}, angular: {z: 0.0}}" -r 10`
-
-## SLAM 建图
-
-**启动顺序**：必须先等 Gazebo 完全启动（看到 `spawn_entity finished cleanly`），再启动 SLAM。
+先启动仿真环境：
 
 ```bash
-# 终端1：仿真环境
-ros2env
 ros2 launch project spawn.launch.py
-# 等待 "spawn_entity.py: process has finished cleanly"
+```
 
-# 终端2：Cartographer 2D SLAM
-ros2env
+在第二个终端启动 Cartographer：
+
+```bash
+source ~/warehouse_ws/install/setup.bash
 ros2 launch project slam.launch.py
-# 看到 "Inserted submap" 说明建图开始
+```
 
-# 终端3：遥控机器人边走边建图
-ros2env
+在第三个终端遥控机器人运动并完成建图：
+
+```bash
+source ~/warehouse_ws/install/setup.bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
-少开 SLAM 的结果：机器人仍然能在 Gazebo 里移动，但 Cartographer 没有运行，不会订阅 `/scan` 和 `/odom` 生成地图；RViz 里看不到持续更新的 `/map`，`map_saver_cli` 也没有可保存的有效地图。也就是说，“只遥控”适合测试底盘和传感器，“遥控 + SLAM”才是建图流程。
-
-**命令行监控建图进程：**
+可通过以下命令观察地图输出：
 
 ```bash
-ros2 topic echo /map --field header 2>/dev/null | head -5    # 地图是否有更新
-ros2 topic echo /submap_list                                  # 子图数量
+ros2 topic echo /map --field header
+ros2 topic echo /submap_list
 ```
 
-## 保存地图
-
-建图完成后，在 slam 终端 Ctrl+C 停止 Cartographer，然后：
+建图完成后保存地图：
 
 ```bash
+mkdir -p ~/warehouse_ws/src/project/maps
 ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map
 ```
 
-会生成 `warehouse_map.yaml` + `warehouse_map.pgm`。
+保存后会生成 `warehouse_map.yaml` 和 `warehouse_map.pgm`。
 
-## 3D SLAM（RTAB-Map，可选）
+## 3D 建图
 
-需要 RGB-D 相机数据，内存峰值约 8-10GB：
+项目支持使用 RGB-D 相机运行 RTAB-Map：
 
 ```bash
+source ~/warehouse_ws/install/setup.bash
 ros2 launch project rtabmap.launch.py
 ```
 
-建图完成后用 RTAB-Map 自带的数据库导出地图，或直接用 `map_saver_cli` 保存 `/rtabmap/grid_map`。
+RTAB-Map 对内存要求更高，建议在 16 GB 以上内存的环境中运行。
 
-## 定位
+## 定位与自主导航
 
-需要有已保存的地图文件 `maps/warehouse_map.yaml`：
+保存地图后，先启动仿真环境：
 
 ```bash
-# 终端1：仿真环境
+source ~/warehouse_ws/install/setup.bash
 ros2 launch project spawn.launch.py
-
-# 终端2：AMCL 定位 + 地图加载
-ros2 launch project nav.launch.py
 ```
 
-AMCL 使用 5000 个粒子，支持全局定位。可通过以下方式触发重定位：
+在另一个终端启动 AMCL 和 Nav2：
+
+```bash
+source ~/warehouse_ws/install/setup.bash
+ros2 launch project nav.launch.py map:=~/warehouse_ws/src/project/maps/warehouse_map.yaml
+```
+
+如需触发全局重定位，可执行：
 
 ```bash
 ros2 service call /reinitialize_global_localization std_srvs/srv/Empty
 ```
 
-## 自主导航 + 动态避障
+运行多目标点导航示例：
 
 ```bash
-# 终端1：仿真环境
-ros2 launch project spawn.launch.py
-
-# 终端2：导航栈（AMCL + Nav2）
-ros2 launch project nav.launch.py
-
-# 终端3：启动动态障碍（叉车在主通道来回移动）
-ros2 run project forklift_controller.py
-
-# 终端4：一键多目标点导航
+source ~/warehouse_ws/install/setup.bash
 ros2 run project waypoint_nav.py
 ```
 
-**手动设置导航目标**（VNC 桌面中用 RViz）：用 "2D Goal Pose" 工具在地图上点击目标位置。
-
-## 图形界面（noVNC 浏览器远程桌面）
-
-AutoDL 无显示器，可以用 `Xvfb + x11vnc + noVNC` 创建虚拟桌面，并直接在浏览器里查看 Gazebo / RViz 图形界面。
-
-### 安装组件
+启动动态叉车障碍示例：
 
 ```bash
-apt update
-apt install -y xvfb x11vnc novnc websockify xterm
+source ~/warehouse_ws/install/setup.bash
+ros2 run project forklift_controller.py
 ```
 
-### 启动图形桌面
+## RViz 可视化
+
+SLAM 可视化：
 
 ```bash
-# 1. 启动虚拟显示器
-Xvfb :1 -screen 0 1280x720x24 &
-
-# 2. 启动 x11vnc
-x11vnc -display :1 -nopw -listen localhost -xkb -forever &
-
-# 3. 启动 noVNC，浏览器通过 6006 访问
-websockify --web=/usr/share/novnc 6006 localhost:5900 &
-
-# 4. 启动 xterm，可选，让桌面不是黑屏
-DISPLAY=:1 xterm &
+rviz2 -d ~/warehouse_ws/src/project/config/slam.rviz
 ```
 
-浏览器打开：
-
-```text
-https://u688255-ca0q-16abf359.westb.seetacloud.com:8443/vnc.html
-```
-
-AutoDL 每次开机后 SSH 登录地址和端口可能变化，但 noVNC 浏览器访问地址绑定实例，一般不受 SSH 地址变化影响。
-
-### 一键启动脚本
-
-进程不会在 AutoDL 重启后自动恢复，建议保存为脚本：
+导航可视化：
 
 ```bash
-cat > ~/start_vnc.sh << 'EOF'
-#!/bin/bash
-Xvfb :1 -screen 0 1280x720x24 &
-sleep 1
-x11vnc -display :1 -nopw -listen localhost -xkb -forever &
-sleep 1
-websockify --web=/usr/share/novnc 6006 localhost:5900 &
-sleep 1
-DISPLAY=:1 xterm &
-echo "VNC started! Open your browser to view."
-EOF
-chmod +x ~/start_vnc.sh
+rviz2 -d ~/warehouse_ws/src/project/config/nav.rviz
 ```
 
-以后每次开机只需要运行：
-
-```bash
-bash ~/start_vnc.sh
-```
-
-### 运行 Gazebo / RViz
-
-启动图形桌面后，在需要显示图形界面的命令前加 `DISPLAY=:1`：
-
-```bash
-# Gazebo
-ros2env
-DISPLAY=:1 ros2 launch project spawn.launch.py
-
-# 或单独启动 Gazebo
-DISPLAY=:1 gazebo &
-
-# 查看 SLAM 建图
-ros2env
-DISPLAY=:1 rviz2 -d ~/warehouse_ws/src/project/config/slam.rviz
-
-# 查看导航
-ros2env
-DISPLAY=:1 rviz2 -d ~/warehouse_ws/src/project/config/nav.rviz
-```
-
-如果浏览器画面黑屏，先确认 `DISPLAY=:1 xterm &` 已启动；如果 Gazebo 或 RViz 报显示相关错误，确认命令前带了 `DISPLAY=:1`。
-
-### 关闭图形进程
-
-```bash
-pkill -f websockify
-pkill -f x11vnc
-pkill -f Xvfb
-```
-
-> VNC 延迟大时可换备选方案：在 AutoDL 用 `map_saver_cli` 保存地图后 `scp` 到 Mac 本地查看。
+如果在无显示器服务器上运行 Gazebo 或 RViz，可以使用 Xvfb、VNC、noVNC 或远程桌面环境提供图形显示。
 
 ## 项目结构
 
-```
+```text
 project/
-├── bringup.launch.py              # 全系统一键启动
-├── CMakeLists.txt                 # colcon 编译配置
-├── package.xml                    # ROS 2 包描述
+├── bringup.launch.py
+├── CMakeLists.txt
+├── package.xml
 ├── config/
-│   ├── cartographer.lua           # Cartographer 2D（LiDAR + odometry）
-│   ├── amcl.yaml                  # AMCL 定位参数
-│   ├── nav2.yaml                  # Nav2（Smac Hybrid-A* + DWB）
-│   ├── slam.rviz                  # SLAM RViz 配置
-│   └── nav.rviz                   # 导航 RViz 配置
+│   ├── amcl.yaml
+│   ├── cartographer.lua
+│   ├── nav2.yaml
+│   ├── nav.rviz
+│   └── slam.rviz
 ├── description/
-│   └── robot.xacro                # 机器人 URDF
-├── worlds/
-│   └── warehouse.world            # 仓储场景（4排货架 + 叉车）
-├── scripts/
-│   ├── waypoint_nav.py            # 多目标点导航
-│   ├── forklift_controller.py     # 叉车动态障碍
-│   ├── apriltag_detect.py         # AprilTag 辅助定位（扩展）
-│   └── setup_autodl.sh            # 一键安装脚本
+│   └── robot.xacro
 ├── launch/
-│   ├── spawn.launch.py            # Gazebo + 机器人
-│   ├── slam.launch.py             # Cartographer 2D SLAM
-│   ├── rtabmap.launch.py          # RTAB-Map 3D SLAM
-│   └── nav.launch.py              # Map Server + AMCL + Nav2
-├── maps/                          # 保存的地图
-└── video/                         # 演示视频
+│   ├── nav.launch.py
+│   ├── rtabmap.launch.py
+│   ├── slam.launch.py
+│   └── spawn.launch.py
+├── scripts/
+│   ├── apriltag_detect.py
+│   ├── forklift_controller.py
+│   ├── setup_autodl.sh
+│   └── waypoint_nav.py
+└── worlds/
+    └── warehouse.world
 ```
 
-## TF 树
+## TF 关系
 
-```
-map → odom → base_footprint → base_link
-              │                ├── laser_link
-              │                ├── camera_rgbd_link
-              │                ├── camera_mono_link
-              │                └── imu_link
-              │
-              (Cartographer/AMCL 发布 map → odom)
-              (diff_drive 插件 发布 odom → base_footprint)
+```text
+map -> odom -> base_footprint -> base_link
+                                ├── laser_link
+                                ├── camera_rgbd_link
+                                ├── camera_mono_link
+                                └── imu_link
 ```
 
-## 参数速查
+其中 `odom -> base_footprint` 由差速驱动仿真插件发布，`map -> odom` 由 Cartographer 或 AMCL 发布。
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| `max_vel_x` | 0.5 m/s | 线速度上限 |
-| `inflation_radius` | 0.3 m | 障碍物膨胀半径 |
-| `goal_tolerance` | 0.2 m / 0.2 rad | 目标到达容差 |
-| AMCL 粒子数 | 5000 | 全局定位 |
-| Cartographer 子图分辨率 | 0.05 m | 建图精度 |
-| RTAB-Map point cloud voxel | 0.05 m | 降采样 |
-| 回环检测 min_score | 0.65 | 防误闭合 |
+## 常见问题
 
-## 故障排查
-
-| 现象 | 原因 | 解决 |
-|------|------|------|
-| `ros2env: command not found` | 新终端未加载 bashrc | `source ~/.bashrc` |
-| `GLIBCXX_3.4.30 not found` | conda libstdc++ 太旧 | 执行 `ros2env`（清除 conda 路径） |
-| Cartographer 启动即崩溃 | 仿真时钟未就绪 | 等 Gazebo 完全启动后再开 SLAM |
-| 按键遥控无反应 | 终端未获得焦点 | 鼠标点击终端窗口内部 |
-| RViz 闪退 | 无头服务器缺 OGRE | 搭 VNC 后运行，或不用 RViz 纯命令行操作 |
+| 问题 | 可能原因 | 解决方法 |
+| --- | --- | --- |
+| `package 'project' not found` | 未加载工作空间环境 | 执行 `source ~/warehouse_ws/install/setup.bash` |
+| `GLIBCXX_3.4.30 not found` | conda 的库路径与 ROS 冲突 | 执行 `conda deactivate` 后重新加载 ROS 和工作空间 |
+| Cartographer 启动后没有地图 | Gazebo 或 `/clock` 未就绪 | 先启动 Gazebo，并等待机器人加载完成 |
+| 键盘遥控无反应 | 终端未获得焦点或 `/cmd_vel` 未发布 | 点击终端窗口，并用 `ros2 topic echo /cmd_vel` 检查 |
+| RViz 或 Gazebo 在服务器上启动失败 | 缺少图形显示环境 | 使用 Xvfb、VNC、noVNC 或远程桌面 |
 
 ## 注意事项
 
-1. 所有 launch 文件默认 `use_sim_time: true`，依赖 Gazebo 的 `/clock` 话题
-2. 必须先启动 Gazebo（等机器人 spawn 完成），再启动 SLAM / 导航
-3. `ros2env` 会清除 conda 路径，解决 libstdc++ 冲突
-4. RTAB-Map 3D 建图内存峰值 8-10GB，实例内存需 16GB+
-5. 首次启动 Gazebo 会在线下载模型文件，后续会缓存
+- 各 launch 文件默认使用仿真时间。
+- 启动 SLAM 或导航前，应先启动 Gazebo。
+- 保存地图路径可通过 `map:=...` 参数传入。
+- 当前 ROS 包名为 `project`；如需重命名，请同步修改 `package.xml`、`CMakeLists.txt` 和相关启动命令。
+
+## 许可证
+
+本项目采用 MIT License。
