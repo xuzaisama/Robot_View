@@ -53,9 +53,12 @@ ros2env      # 每个新终端都要先执行（自动退出 conda + 加载 ROS 
 ## 启动仿真环境
 
 ```bash
+ros2env
 ros2 launch project spawn.launch.py
 # 等待看到 "spawn_entity.py: process has finished cleanly" 表示 Gazebo + 机器人已就绪
 ```
+
+此时只是启动了仿真世界、机器人模型、传感器和里程计。机器人可以被遥控，`/scan`、`/odom`、相机等话题也会发布，但还不会生成 `/map`，也不能保存建图结果。
 
 | 传感器 | 话题 | 帧 |
 |--------|------|-----|
@@ -68,8 +71,11 @@ ros2 launch project spawn.launch.py
 ## 遥控机器人
 
 ```bash
+ros2env
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
+
+如果只是验证机器人能不能运动，可以只启动 Gazebo 后直接遥控；如果目标是建图，必须同时启动下面的 SLAM。
 
 ```
 u    i    o      i = 前进      , = 后退
@@ -96,16 +102,21 @@ e/c : 增减角速度 10%
 
 ```bash
 # 终端1：仿真环境
+ros2env
 ros2 launch project spawn.launch.py
 # 等待 "spawn_entity.py: process has finished cleanly"
 
 # 终端2：Cartographer 2D SLAM
+ros2env
 ros2 launch project slam.launch.py
 # 看到 "Inserted submap" 说明建图开始
 
 # 终端3：遥控机器人边走边建图
+ros2env
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
+
+少开 SLAM 的结果：机器人仍然能在 Gazebo 里移动，但 Cartographer 没有运行，不会订阅 `/scan` 和 `/odom` 生成地图；RViz 里看不到持续更新的 `/map`，`map_saver_cli` 也没有可保存的有效地图。也就是说，“只遥控”适合测试底盘和传感器，“遥控 + SLAM”才是建图流程。
 
 **命令行监控建图进程：**
 
@@ -177,6 +188,7 @@ AutoDL 无显示器，需搭建 VNC 才能在 Mac 上看到 RViz / Gazebo 画面
 ### 安装 VNC
 
 ```bash
+apt update
 apt install -y xfce4 xfce4-goodies tigervnc-standalone-server tigervnc-common
 vncpasswd                   # 设置密码
 ```
@@ -193,9 +205,19 @@ AutoDL 网页控制台 → "自定义服务" → 添加端口 **5901**。
 
 ### Mac 连接
 
-Finder → 前往 → 连接服务器 → `vnc://connect.westb.seetacloud.com:5901` → 输入密码
+Finder → 前往 → 连接服务器 → `vnc://<AutoDL访问域名>:5901` → 输入 VNC 密码
 
-进入桌面后打开终端，`ros2env` 即可运行 `rviz2`。
+进入桌面后打开终端，先执行 `ros2env`，再运行图形程序：
+
+```bash
+# 查看 SLAM 建图
+rviz2 -d ~/warehouse_ws/src/project/config/slam.rviz
+
+# 查看导航
+rviz2 -d ~/warehouse_ws/src/project/config/nav.rviz
+```
+
+Gazebo 图形界面会随 `ros2 launch project spawn.launch.py` 打开；如果 Gazebo 或 RViz 报显示相关错误，确认是在 VNC 桌面里的终端运行，而不是普通 SSH 终端运行。
 
 ### 关闭 VNC
 
