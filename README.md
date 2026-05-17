@@ -181,48 +181,95 @@ ros2 run project waypoint_nav.py
 
 **手动设置导航目标**（VNC 桌面中用 RViz）：用 "2D Goal Pose" 工具在地图上点击目标位置。
 
-## 图形界面（VNC 远程桌面）
+## 图形界面（noVNC 浏览器远程桌面）
 
-AutoDL 无显示器，需搭建 VNC 才能在 Mac 上看到 RViz / Gazebo 画面。
+AutoDL 无显示器，可以用 `Xvfb + x11vnc + noVNC` 创建虚拟桌面，并直接在浏览器里查看 Gazebo / RViz 图形界面。
 
-### 安装 VNC
+### 安装组件
 
 ```bash
 apt update
-apt install -y xfce4 xfce4-goodies tigervnc-standalone-server tigervnc-common
-vncpasswd                   # 设置密码
+apt install -y xvfb x11vnc novnc websockify xterm
 ```
 
-### 启动 VNC
+### 启动图形桌面
 
 ```bash
-vncserver :1 -geometry 1920x1080 -depth 24 -localhost no
+# 1. 启动虚拟显示器
+Xvfb :1 -screen 0 1280x720x24 &
+
+# 2. 启动 x11vnc
+x11vnc -display :1 -nopw -listen localhost -xkb -forever &
+
+# 3. 启动 noVNC，浏览器通过 6006 访问
+websockify --web=/usr/share/novnc 6006 localhost:5900 &
+
+# 4. 启动 xterm，可选，让桌面不是黑屏
+DISPLAY=:1 xterm &
 ```
 
-### 开放端口
+浏览器打开：
 
-AutoDL 网页控制台 → "自定义服务" → 添加端口 **5901**。
+```text
+https://u688255-ca0q-16abf359.westb.seetacloud.com:8443/vnc.html
+```
 
-### Mac 连接
+AutoDL 每次开机后 SSH 登录地址和端口可能变化，但 noVNC 浏览器访问地址绑定实例，一般不受 SSH 地址变化影响。
 
-Finder → 前往 → 连接服务器 → `vnc://<AutoDL访问域名>:5901` → 输入 VNC 密码
+### 一键启动脚本
 
-进入桌面后打开终端，先执行 `ros2env`，再运行图形程序：
+进程不会在 AutoDL 重启后自动恢复，建议保存为脚本：
 
 ```bash
+cat > ~/start_vnc.sh << 'EOF'
+#!/bin/bash
+Xvfb :1 -screen 0 1280x720x24 &
+sleep 1
+x11vnc -display :1 -nopw -listen localhost -xkb -forever &
+sleep 1
+websockify --web=/usr/share/novnc 6006 localhost:5900 &
+sleep 1
+DISPLAY=:1 xterm &
+echo "VNC started! Open your browser to view."
+EOF
+chmod +x ~/start_vnc.sh
+```
+
+以后每次开机只需要运行：
+
+```bash
+bash ~/start_vnc.sh
+```
+
+### 运行 Gazebo / RViz
+
+启动图形桌面后，在需要显示图形界面的命令前加 `DISPLAY=:1`：
+
+```bash
+# Gazebo
+ros2env
+DISPLAY=:1 ros2 launch project spawn.launch.py
+
+# 或单独启动 Gazebo
+DISPLAY=:1 gazebo &
+
 # 查看 SLAM 建图
-rviz2 -d ~/warehouse_ws/src/project/config/slam.rviz
+ros2env
+DISPLAY=:1 rviz2 -d ~/warehouse_ws/src/project/config/slam.rviz
 
 # 查看导航
-rviz2 -d ~/warehouse_ws/src/project/config/nav.rviz
+ros2env
+DISPLAY=:1 rviz2 -d ~/warehouse_ws/src/project/config/nav.rviz
 ```
 
-Gazebo 图形界面会随 `ros2 launch project spawn.launch.py` 打开；如果 Gazebo 或 RViz 报显示相关错误，确认是在 VNC 桌面里的终端运行，而不是普通 SSH 终端运行。
+如果浏览器画面黑屏，先确认 `DISPLAY=:1 xterm &` 已启动；如果 Gazebo 或 RViz 报显示相关错误，确认命令前带了 `DISPLAY=:1`。
 
-### 关闭 VNC
+### 关闭图形进程
 
 ```bash
-vncserver -kill :1
+pkill -f websockify
+pkill -f x11vnc
+pkill -f Xvfb
 ```
 
 > VNC 延迟大时可换备选方案：在 AutoDL 用 `map_saver_cli` 保存地图后 `scp` 到 Mac 本地查看。
