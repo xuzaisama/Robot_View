@@ -1,17 +1,17 @@
 Panels:
-  - Class: rviz2/Displays
+  - Class: rviz_common/Displays
     Name: Displays
-  - Class: rviz2/Views
+  - Class: rviz_common/Views
     Name: Views
 Visualization Manager:
   Class: ""
   Displays:
-    - Class: rviz2/TF
+    - Class: rviz_default_plugins/TF
       Name: TF
       Enabled: true
       Marker Scale: 0.3
       Frame Timeout: 15
-    - Class: rviz2/Map
+    - Class: rviz_default_plugins/Map
       Name: Global Map
       Enabled: true
       Topic:
@@ -20,7 +20,7 @@ Visualization Manager:
         Value: /map
       Color Scheme: map
       Draw Behind: false
-    - Class: rviz2/Map
+    - Class: rviz_default_plugins/Map
       Name: Global Costmap
       Enabled: false
       Topic:
@@ -29,7 +29,7 @@ Visualization Manager:
         Value: /global_costmap/costmap
       Color Scheme: costmap
       Draw Behind: false
-    - Class: rviz2/Map
+    - Class: rviz_default_plugins/Map
       Name: Local Costmap
       Enabled: true
       Topic:
@@ -38,7 +38,7 @@ Visualization Manager:
         Value: /local_costmap/costmap
       Color Scheme: costmap
       Draw Behind: false
-    - Class: rviz2/LaserScan
+    - Class: rviz_default_plugins/LaserScan
       Name: LaserScan
       Enabled: true
       Topic:
@@ -47,7 +47,7 @@ Visualization Manager:
         Value: /scan
       Style: Points
       Size (m): 0.02
-    - Class: rviz2/RobotModel
+    - Class: rviz_default_plugins/RobotModel
       Name: RobotModel
       Enabled: true
       Description Source: Topic
@@ -55,7 +55,7 @@ Visualization Manager:
         Depth: 1
         Reliability: 1
         Value: /robot_description
-    - Class: rviz2/Path
+    - Class: rviz_default_plugins/Path
       Name: Global Plan
       Enabled: true
       Topic:
@@ -64,7 +64,7 @@ Visualization Manager:
         Value: /plan
       Color: 0 255 0
       Alpha: 0.8
-    - Class: rviz2/Path
+    - Class: rviz_default_plugins/Path
       Name: Local Plan
       Enabled: true
       Topic:
@@ -73,14 +73,14 @@ Visualization Manager:
         Value: /local_plan
       Color: 255 0 255
       Alpha: 0.6
-    - Class: rviz2/Path
+    - Class: rviz_default_plugins/Path
       Name: Smac Plan
       Enabled: false
       Topic:
         Depth: 1
         Reliability: 1
         Value: /received_global_plan
-    - Class: rviz2/ParticleCloud
+    - Class: nav2_rviz_plugins/ParticleCloud
       Name: AMCL Particles
       Enabled: true
       Topic:
@@ -89,7 +89,7 @@ Visualization Manager:
         Value: /particle_cloud
       Color: 255 255 0
       Alpha: 0.5
-    - Class: rviz2/MarkerArray
+    - Class: rviz_default_plugins/MarkerArray
       Name: Waypoint Markers
       Enabled: true
       Topic:
@@ -101,14 +101,14 @@ Visualization Manager:
     Fixed Frame: map
     Frame Rate: 30
   Tools:
-    - Class: rviz2/MoveCamera
-    - Class: rviz2/Interact
-    - Class: rviz2/Select
-    - Class: rviz2/SetInitialPose
-    - Class: rviz2/SetGoal
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetInitialPose
+    - Class: rviz_default_plugins/SetGoal
   Views:
     Current:
-      Class: rviz2/Orbit
+      Class: rviz_default_plugins/Orbit
       Distance: 15
       Focal Point: [0, 0, 0]
       Name: Current View
