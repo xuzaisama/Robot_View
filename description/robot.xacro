@@ -1,0 +1,337 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="warehouse_robot">
+
+  <!-- ========== Materials ========== -->
+  <material name="black">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="gray">
+    <color rgba="0.4 0.4 0.4 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.2 0.2 0.8 1.0"/>
+  </material>
+  <material name="white">
+    <color rgba="1.0 1.0 1.0 1.0"/>
+  </material>
+
+  <!-- ========== Inertia macros ========== -->
+  <xacro:macro name="cylinder_inertial" params="mass radius length xyz:=0">
+    <inertial>
+      <mass value="${mass}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <inertia
+        ixx="${mass*(3*radius*radius + length*length)/12}"
+        iyy="${mass*(3*radius*radius + length*length)/12}"
+        izz="${mass*radius*radius/2}"
+        ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="box_inertial" params="mass x y z xyz:=0">
+    <inertial>
+      <mass value="${mass}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+      <inertia
+        ixx="${mass*(y*y + z*z)/12}"
+        iyy="${mass*(x*x + z*z)/12}"
+        izz="${mass*(x*x + y*y)/12}"
+        ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ========== base_footprint ========== -->
+  <link name="base_footprint">
+    <visual>
+      <geometry><sphere radius="0.01"/></geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ========== base_link (chassis) ========== -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.25" length="0.1"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.25" length="0.1"/>
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="15.0" radius="0.25" length="0.1" xyz="0 0 0"/>
+  </link>
+
+  <!-- ========== 2D LiDAR (Hokuyo URG-04LX) ========== -->
+  <link name="laser_link"/>
+
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser_link"/>
+    <origin xyz="0.1 0 0.15" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="laser_link">
+    <sensor type="ray" name="hokuyo_laser">
+      <pose>0 0 0 0 0 0</pose>
+      <visualize>false</visualize>
+      <update_rate>10</update_rate>
+      <ray>
+        <scan>
+          <horizontal>
+            <samples>1080</samples>
+            <resolution>1</resolution>
+            <min_angle>-2.356194</min_angle><!-- -135° -->
+            <max_angle>2.356194</max_angle><!-- +135° = 270° total -->
+          </horizontal>
+        </scan>
+        <range>
+          <min>0.1</min>
+          <max>10.0</max>
+          <resolution>0.01</resolution>
+        </range>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.02</stddev>
+        </noise>
+      </ray>
+      <plugin name="gazebo_ros_hokuyo_laser" filename="libgazebo_ros_ray_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <argument>~/out:=scan</argument>
+        </ros>
+        <output_type>sensor_msgs/LaserScan</output_type>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ========== RGB-D Camera (Realsense D435) ========== -->
+  <link name="camera_rgbd_link"/>
+
+  <joint name="camera_rgbd_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_rgbd_link"/>
+    <origin xyz="0.18 0 0.55" rpy="0 0.1 0"/>
+  </joint>
+
+  <!-- RGB camera -->
+  <gazebo reference="camera_rgbd_link">
+    <sensor type="camera" name="realsense_rgb">
+      <update_rate>15</update_rate>
+      <camera>
+        <horizontal_fov>1.518436</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip><near>0.1</near><far>10.0</far></clip>
+      </camera>
+      <plugin name="gazebo_ros_rgb" filename="libgazebo_ros_camera.so">
+        <ros><namespace>/camera/rgb</namespace></ros>
+        <camera_name>realsense_rgb</camera_name>
+        <frame_name>camera_rgbd_link</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- Depth camera (same link) -->
+  <gazebo reference="camera_rgbd_link">
+    <sensor type="depth" name="realsense_depth">
+      <update_rate>15</update_rate>
+      <camera>
+        <horizontal_fov>1.518436</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip><near>0.1</near><far>10.0</far></clip>
+      </camera>
+      <plugin name="gazebo_ros_depth" filename="libgazebo_ros_camera.so">
+        <ros><namespace>/camera/depth</namespace></ros>
+        <camera_name>realsense_depth</camera_name>
+        <frame_name>camera_rgbd_link</frame_name>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ========== IMU ========== -->
+  <link name="imu_link"/>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="imu_link">
+    <gravity>true</gravity>
+    <sensor type="imu" name="imu_sensor">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <visualize>false</visualize>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian" mean="0.0" stddev="0.0005"/></x>
+          <y><noise type="gaussian" mean="0.0" stddev="0.0005"/></y>
+          <z><noise type="gaussian" mean="0.0" stddev="0.0005"/></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian" mean="0.0" stddev="0.0001"/></x>
+          <y><noise type="gaussian" mean="0.0" stddev="0.0001"/></y>
+          <z><noise type="gaussian" mean="0.0" stddev="0.0001"/></z>
+        </linear_acceleration>
+      </imu>
+      <plugin name="gazebo_ros_imu" filename="libgazebo_ros_imu_sensor.so">
+        <ros>
+          <namespace>/</namespace>
+          <argument>~/out:=imu</argument>
+        </ros>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- ========== Mono camera (reserved for AprilTag extension) ========== -->
+  <link name="camera_mono_link"/>
+
+  <joint name="camera_mono_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_mono_link"/>
+    <origin xyz="0.18 0 0.65" rpy="0 0.15 0"/>
+  </joint>
+
+  <!-- Mono camera sensor: plugin disabled by default, activate for AprilTag -->
+  <!--
+  <gazebo reference="camera_mono_link">
+    <sensor type="camera" name="mono_camera">
+      <update_rate>30</update_rate>
+      <camera>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+        <clip><near>0.1</near><far>30.0</far></clip>
+      </camera>
+      <plugin name="gazebo_ros_mono_camera" filename="libgazebo_ros_camera.so">
+        <ros><namespace>/mono</namespace></ros>
+      </plugin>
+    </sensor>
+  </gazebo>
+  -->
+
+  <!-- ========== Wheels ========== -->
+  <link name="left_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.075" length="0.04"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.075" length="0.04"/>
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="0.5" radius="0.075" length="0.04" xyz="0 0 0"/>
+  </link>
+
+  <joint name="left_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="left_wheel_link"/>
+    <origin xyz="0 0.18 -0.04" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+
+  <link name="right_wheel_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.075" length="0.04"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+      <geometry>
+        <cylinder radius="0.075" length="0.04"/>
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="0.5" radius="0.075" length="0.04" xyz="0 0 0"/>
+  </link>
+
+  <joint name="right_wheel_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="right_wheel_link"/>
+    <origin xyz="0 -0.18 -0.04" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+  </joint>
+
+  <!-- Caster wheel -->
+  <link name="caster_wheel_link">
+    <visual>
+      <geometry>
+        <sphere radius="0.04"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <sphere radius="0.04"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertial mass="0.1" x="0.01" y="0.01" z="0.01" xyz="0 0 0"/>
+  </link>
+
+  <joint name="caster_wheel_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster_wheel_link"/>
+    <origin xyz="-0.2 0 -0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ========== Diff Drive Plugin ========== -->
+  <gazebo>
+    <plugin name="diff_drive_controller" filename="libgazebo_ros_diff_drive.so">
+      <ros>
+        <namespace>/</namespace>
+      </ros>
+
+      <update_rate>50</update_rate>
+
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+
+      <wheel_separation>0.36</wheel_separation>
+      <wheel_diameter>0.15</wheel_diameter>
+
+      <max_wheel_torque>20.0</max_wheel_torque>
+      <max_wheel_acceleration>10.0</max_wheel_acceleration>
+
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <publish_wheel_tf>false</publish_wheel_tf>
+
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+
+      <command_topic>cmd_vel</command_topic>
+      <odometry_topic>odom</odometry_topic>
+
+      <covariance_x>0.0001</covariance_x>
+      <covariance_y>0.0001</covariance_y>
+      <covariance_yaw>0.01</covariance_yaw>
+    </plugin>
+  </gazebo>
+
+</robot>

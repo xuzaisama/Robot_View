@@ -1,0 +1,116 @@
+Panels:
+  - Class: rviz2/Displays
+    Name: Displays
+  - Class: rviz2/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz2/TF
+      Name: TF
+      Enabled: true
+      Marker Scale: 0.3
+      Frame Timeout: 15
+    - Class: rviz2/Map
+      Name: Global Map
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /map
+      Color Scheme: map
+      Draw Behind: false
+    - Class: rviz2/Map
+      Name: Global Costmap
+      Enabled: false
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /global_costmap/costmap
+      Color Scheme: costmap
+      Draw Behind: false
+    - Class: rviz2/Map
+      Name: Local Costmap
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /local_costmap/costmap
+      Color Scheme: costmap
+      Draw Behind: false
+    - Class: rviz2/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /scan
+      Style: Points
+      Size (m): 0.02
+    - Class: rviz2/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /robot_description
+    - Class: rviz2/Path
+      Name: Global Plan
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /plan
+      Color: 0 255 0
+      Alpha: 0.8
+    - Class: rviz2/Path
+      Name: Local Plan
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /local_plan
+      Color: 255 0 255
+      Alpha: 0.6
+    - Class: rviz2/Path
+      Name: Smac Plan
+      Enabled: false
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /received_global_plan
+    - Class: rviz2/ParticleCloud
+      Name: AMCL Particles
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /particle_cloud
+      Color: 255 255 0
+      Alpha: 0.5
+    - Class: rviz2/MarkerArray
+      Name: Waypoint Markers
+      Enabled: true
+      Topic:
+        Depth: 1
+        Reliability: 1
+        Value: /waypoints
+  Global Options:
+    Background Color: 30 30 30
+    Fixed Frame: map
+    Frame Rate: 30
+  Tools:
+    - Class: rviz2/MoveCamera
+    - Class: rviz2/Interact
+    - Class: rviz2/Select
+    - Class: rviz2/SetInitialPose
+    - Class: rviz2/SetGoal
+  Views:
+    Current:
+      Class: rviz2/Orbit
+      Distance: 15
+      Focal Point: [0, 0, 0]
+      Name: Current View
+      Pitch: 0.785
+      Yaw: 0.785
