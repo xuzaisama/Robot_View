@@ -182,6 +182,23 @@ def test_referenced_project_files_exist():
     assert not missing, f"missing project files: {missing}"
 
 
+def test_readme_documents_current_bringup_flow():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    required_snippets = [
+        "python3 tests/static_checks.py",
+        "ros2 launch project bringup.launch.py mode:=sim",
+        "ros2 launch project bringup.launch.py mode:=slam",
+        "ros2 launch project bringup.launch.py mode:=nav",
+        "ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map",
+        "ros2 run project waypoint_nav.py",
+        "mode:=nav` 直接退出",
+        "PASS test_readme_documents_current_bringup_flow",
+    ]
+    missing = [snippet for snippet in required_snippets if snippet not in readme]
+    assert not missing, f"README missing snippets: {missing}"
+
+
 def run_all():
     tests = [
         test_python_files_compile,
@@ -192,6 +209,7 @@ def run_all():
         test_bringup_has_modes_and_map_validation,
         test_nav_launch_checks_map_before_starting_nav2,
         test_referenced_project_files_exist,
+        test_readme_documents_current_bringup_flow,
     ]
     for test in tests:
         test()
