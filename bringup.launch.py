@@ -8,15 +8,39 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
-def mode_is(mode):
-    return IfCondition(PythonExpression(["'", LaunchConfiguration("mode"), "' == '", mode, "'"]))
+def condition_expr(parts):
+    return IfCondition(PythonExpression(parts))
 
 
-def mode_in(modes):
-    checks = ["'", LaunchConfiguration("mode"), "' == '", modes[0], "'"]
-    for mode in modes[1:]:
-        checks.extend([" or '", LaunchConfiguration("mode"), "' == '", mode, "'"])
-    return IfCondition(PythonExpression(checks))
+def launch_equals(name, value):
+    return condition_expr(["'", LaunchConfiguration(name), "' == '", value, "'"])
+
+
+def launch_in(name, values):
+    parts = ["("]
+    for index, value in enumerate(values):
+        if index:
+            parts.append(" or ")
+        parts.extend(["'", LaunchConfiguration(name), "' == '", value, "'"])
+    parts.append(")")
+    return condition_expr(parts)
+
+
+def launch_bool(name):
+    return condition_expr(["'", LaunchConfiguration(name), "' == 'true'"])
+
+
+def launch_bool_and(name, extra_parts):
+    return condition_expr(["'", LaunchConfiguration(name), "' == 'true' and (", *extra_parts, ")"])
+
+
+def mode_expr(values):
+    parts = []
+    for index, value in enumerate(values):
+        if index:
+            parts.append(" or ")
+        parts.extend(["'", LaunchConfiguration("mode"), "' == '", value, "'"])
+    return parts
 
 
 def validate_nav_map(context):
@@ -31,7 +55,7 @@ def validate_nav_map(context):
     return [
         LogInfo(msg=[
             "Navigation map not found: ", map_path,
-            ". Run slam.launch.py first, then save a map with: ",
+            ". Run slam_auto or slam first, then save a map with: ",
             "ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map",
         ]),
         Shutdown(reason="navigation map is missing"),
@@ -45,8 +69,38 @@ def generate_launch_description():
     declare_mode = DeclareLaunchArgument(
         "mode",
         default_value="sim",
-        choices=["sim", "slam", "nav"],
-        description="Bringup mode: sim, slam, or nav",
+        choices=["sim", "slam", "slam_auto", "nav"],
+        description="Bringup mode: sim, slam, slam_auto, or nav",
+    )
+    declare_gui = DeclareLaunchArgument(
+        "gui",
+        default_value="true",
+        choices=["true", "false"],
+        description="Start Gazebo with a visible GUI when true; use xvfb headless mode when false",
+    )
+    declare_rviz = DeclareLaunchArgument(
+        "rviz",
+        default_value="true",
+        choices=["true", "false"],
+        description="Start RViz when true",
+    )
+    declare_performance = DeclareLaunchArgument(
+        "performance",
+        default_value="low",
+        choices=["low", "normal"],
+        description="Sensor load profile for VirtualBox stability or full-resolution simulation",
+    )
+    declare_route = DeclareLaunchArgument(
+        "route",
+        default_value="safe",
+        choices=["safe", "coverage", "extended"],
+        description="Auto-mapping route used by mode:=slam_auto",
+    )
+    declare_dynamic_obstacles = DeclareLaunchArgument(
+        "dynamic_obstacles",
+        default_value="true",
+        choices=["true", "false"],
+        description="Move the dynamic forklift obstacle when true; keep false while mapping",
     )
     declare_world = DeclareLaunchArgument(
         "world",
@@ -59,18 +113,40 @@ def generate_launch_description():
         description="Path to saved map YAML for nav mode",
     )
 
-    xacro_path = os.path.join(pkg_dir, "description", "robot.xacro")
     world = LaunchConfiguration("world")
     map_file = LaunchConfiguration("map")
+    route = LaunchConfiguration("route")
+    route_file = os.path.join(pkg_dir, "config", "auto_mapping_route.yaml")
+    xacro_path = os.path.join(pkg_dir, "description", "robot.xacro")
 
-    # ==================== SIMULATION ====================
-    gazebo = ExecuteProcess(
+    lidar_samples = PythonExpression(["'1080' if '", LaunchConfiguration("performance"), "' == 'normal' else '540'"])
+    lidar_update_rate = PythonExpression(["'10' if '", LaunchConfiguration("performance"), "' == 'normal' else '8'"])
+    camera_width = PythonExpression(["'640' if '", LaunchConfiguration("performance"), "' == 'normal' else '320'"])
+    camera_height = PythonExpression(["'480' if '", LaunchConfiguration("performance"), "' == 'normal' else '240'"])
+    camera_update_rate = PythonExpression(["'15' if '", LaunchConfiguration("performance"), "' == 'normal' else '8'"])
+    imu_update_rate = PythonExpression(["'100' if '", LaunchConfiguration("performance"), "' == 'normal' else '50'"])
+
+    gazebo_gui = ExecuteProcess(
+        cmd=["gazebo", "--verbose", world, "-s", "libgazebo_ros_factory.so"],
+        condition=launch_bool("gui"),
+        output="screen",
+    )
+    gazebo_headless = ExecuteProcess(
         cmd=["xvfb-run", "-s", "-screen 0 1280x1024x24", "gazebo", "--verbose", world,
              "-s", "libgazebo_ros_factory.so"],
+        condition=condition_expr(["'", LaunchConfiguration("gui"), "' == 'false'"]),
         output="screen",
     )
 
-    robot_desc_content = Command(["xacro ", xacro_path])
+    robot_desc_content = Command([
+        "xacro ", xacro_path,
+        " lidar_samples:=", lidar_samples,
+        " lidar_update_rate:=", lidar_update_rate,
+        " camera_width:=", camera_width,
+        " camera_height:=", camera_height,
+        " camera_update_rate:=", camera_update_rate,
+        " imu_update_rate:=", imu_update_rate,
+    ])
     robot_desc = {
         "robot_description": ParameterValue(robot_desc_content, value_type=str)
     }
@@ -102,18 +178,51 @@ def generate_launch_description():
     forklift_ctrl = Node(
         package="project",
         executable="forklift_controller.py",
+        condition=launch_bool_and("dynamic_obstacles", mode_expr(["sim", "nav"])),
         output="screen",
     )
 
-    # ==================== SLAM ====================
     cartographer_config = os.path.join(pkg_dir, "config", "cartographer.lua")
+    cartographer_node = Node(
+        package="cartographer_ros",
+        executable="cartographer_node",
+        parameters=[{"use_sim_time": True}],
+        arguments=[
+            "-configuration_directory", os.path.dirname(cartographer_config),
+            "-configuration_basename", os.path.basename(cartographer_config),
+        ],
+        remappings=[("scan", "/scan"), ("odom", "/odom"), ("imu", "/imu")],
+        condition=launch_in("mode", ["slam", "slam_auto"]),
+        output="screen",
+    )
+    cartographer_grid = Node(
+        package="cartographer_ros",
+        executable="cartographer_occupancy_grid_node",
+        parameters=[{"use_sim_time": True}],
+        arguments=["-resolution", "0.05", "-publish_period_sec", "1.0"],
+        condition=launch_in("mode", ["slam", "slam_auto"]),
+        output="screen",
+    )
+    auto_mapping_patrol = Node(
+        package="project",
+        executable="auto_mapping_patrol.py",
+        parameters=[{
+            "route_file": route_file,
+            "route": route,
+            "front_clearance": 0.6,
+            "max_recovery_attempts": 5,
+            "cmd_vel_topic": "/cmd_vel",
+            "scan_topic": "/scan",
+        }],
+        condition=launch_equals("mode", "slam_auto"),
+        output="screen",
+    )
 
-    # ==================== LOCALIZATION ====================
     map_server = Node(
         package="nav2_map_server",
         executable="map_server",
         parameters=[{"use_sim_time": True}, {"yaml_filename": map_file}],
-        condition=mode_is("nav"),
+        condition=launch_equals("mode", "nav"),
         output="screen",
     )
     amcl = Node(
@@ -121,7 +230,7 @@ def generate_launch_description():
         executable="amcl",
         parameters=[os.path.join(pkg_dir, "config", "amcl.yaml")],
         remappings=[("scan", "/scan")],
-        condition=mode_is("nav"),
+        condition=launch_equals("mode", "nav"),
         output="screen",
     )
     lifecycle_loc = Node(
@@ -132,35 +241,34 @@ def generate_launch_description():
             {"use_sim_time": True}, {"autostart": True},
             {"node_names": ["map_server", "amcl"]},
         ],
-        condition=mode_is("nav"),
+        condition=launch_equals("mode", "nav"),
         output="screen",
     )
 
-    # ==================== NAVIGATION ====================
     nav2_config = os.path.join(pkg_dir, "config", "nav2.yaml")
     controller_server = Node(
         package="nav2_controller", executable="controller_server",
-        parameters=[nav2_config], condition=mode_is("nav"), output="screen",
+        parameters=[nav2_config], condition=launch_equals("mode", "nav"), output="screen",
     )
     planner_server = Node(
         package="nav2_planner", executable="planner_server",
-        parameters=[nav2_config], condition=mode_is("nav"), output="screen",
+        parameters=[nav2_config], condition=launch_equals("mode", "nav"), output="screen",
     )
     behavior_server = Node(
         package="nav2_behaviors", executable="behavior_server",
-        parameters=[nav2_config], condition=mode_is("nav"), output="screen",
+        parameters=[nav2_config], condition=launch_equals("mode", "nav"), output="screen",
     )
     bt_navigator = Node(
         package="nav2_bt_navigator", executable="bt_navigator",
-        parameters=[nav2_config], condition=mode_is("nav"), output="screen",
+        parameters=[nav2_config], condition=launch_equals("mode", "nav"), output="screen",
     )
     waypoint_follower = Node(
         package="nav2_waypoint_follower", executable="waypoint_follower",
-        parameters=[nav2_config], condition=mode_is("nav"), output="screen",
+        parameters=[nav2_config], condition=launch_equals("mode", "nav"), output="screen",
     )
     velocity_smoother = Node(
         package="nav2_velocity_smoother", executable="velocity_smoother",
-        parameters=[nav2_config], condition=mode_is("nav"), output="screen",
+        parameters=[nav2_config], condition=launch_equals("mode", "nav"), output="screen",
     )
     lifecycle_nav = Node(
         package="nav2_lifecycle_manager",
@@ -174,55 +282,43 @@ def generate_launch_description():
                 "waypoint_follower", "velocity_smoother",
             ]},
         ],
-        condition=mode_is("nav"),
+        condition=launch_equals("mode", "nav"),
         output="screen",
     )
 
-    # ==================== RViz ====================
     rviz_nav = Node(
         package="rviz2", executable="rviz2",
         arguments=["-d", os.path.join(pkg_dir, "config", "nav.rviz")],
-        condition=mode_in(["sim", "nav"]),
+        condition=launch_bool_and("rviz", mode_expr(["sim", "nav"])),
         output="screen",
     )
     rviz_slam = Node(
         package="rviz2", executable="rviz2",
         arguments=["-d", os.path.join(pkg_dir, "config", "slam.rviz")],
-        condition=mode_is("slam"),
+        condition=launch_bool_and("rviz", mode_expr(["slam", "slam_auto"])),
         output="screen",
     )
 
     return LaunchDescription([
         declare_use_sim_time,
         declare_mode,
+        declare_gui,
+        declare_rviz,
+        declare_performance,
+        declare_route,
+        declare_dynamic_obstacles,
         declare_world,
         declare_map,
         OpaqueFunction(function=validate_nav_map),
-        gazebo,
+        gazebo_gui,
+        gazebo_headless,
         robot_state_publisher,
         joint_state_publisher,
         TimerAction(period=5.0, actions=[spawn_robot]),
         TimerAction(period=8.0, actions=[forklift_ctrl]),
-        Node(
-            package="cartographer_ros",
-            executable="cartographer_node",
-            parameters=[{"use_sim_time": True}],
-            arguments=[
-                "-configuration_directory", os.path.dirname(cartographer_config),
-                "-configuration_basename", os.path.basename(cartographer_config),
-            ],
-            remappings=[("scan", "/scan"), ("odom", "/odom"), ("imu", "/imu")],
-            condition=mode_is("slam"),
-            output="screen",
-        ),
-        Node(
-            package="cartographer_ros",
-            executable="cartographer_occupancy_grid_node",
-            parameters=[{"use_sim_time": True}],
-            arguments=["-resolution", "0.05", "-publish_period_sec", "1.0"],
-            condition=mode_is("slam"),
-            output="screen",
-        ),
+        cartographer_node,
+        cartographer_grid,
+        TimerAction(period=12.0, actions=[auto_mapping_patrol]),
         map_server,
         amcl,
         lifecycle_loc,

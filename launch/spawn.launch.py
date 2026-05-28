@@ -2,7 +2,8 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
-from launch.substitutions import Command, LaunchConfiguration
+from launch.conditions import IfCondition
+from launch.substitutions import Command, LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -19,11 +20,20 @@ def generate_launch_description():
     declare_world = DeclareLaunchArgument(
         "world", default_value=world_path
     )
+    declare_gui = DeclareLaunchArgument(
+        "gui", default_value="true", choices=["true", "false"]
+    )
     world = LaunchConfiguration("world")
 
-    gazebo = ExecuteProcess(
+    gazebo_gui = ExecuteProcess(
+        cmd=["gazebo", "--verbose", world, "-s", "libgazebo_ros_factory.so"],
+        condition=IfCondition(PythonExpression(["'", LaunchConfiguration("gui"), "' == 'true'"])),
+        output="screen",
+    )
+    gazebo_headless = ExecuteProcess(
         cmd=["xvfb-run", "-s", "-screen 0 1280x1024x24", "gazebo", "--verbose", world,
              "-s", "libgazebo_ros_factory.so"],
+        condition=IfCondition(PythonExpression(["'", LaunchConfiguration("gui"), "' == 'false'"])),
         output="screen",
     )
 
@@ -62,7 +72,9 @@ def generate_launch_description():
     return LaunchDescription([
         declare_use_sim_time,
         declare_world,
-        gazebo,
+        declare_gui,
+        gazebo_gui,
+        gazebo_headless,
         robot_state_publisher,
         joint_state_publisher,
         TimerAction(period=5.0, actions=[spawn_robot]),

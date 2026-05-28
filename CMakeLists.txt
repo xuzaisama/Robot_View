@@ -13,7 +13,13 @@ install(PROGRAMS
   scripts/waypoint_nav.py
   scripts/apriltag_detect.py
   scripts/forklift_controller.py
+  scripts/auto_mapping_patrol.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(FILES
+  bringup.launch.py
+  DESTINATION share/${PROJECT_NAME}
 )
 
 # Install launch files
@@ -37,6 +43,11 @@ install(DIRECTORY
 # Install description (URDF/XACRO)
 install(DIRECTORY
   description
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  docs
   DESTINATION share/${PROJECT_NAME}
 )
 

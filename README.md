@@ -38,6 +38,7 @@ PASS test_nav_launch_checks_map_before_starting_nav2
 PASS test_referenced_project_files_exist
 PASS test_readme_documents_current_bringup_flow
 PASS test_acceptance_checklist_documents_runtime_validation
+PASS test_auto_mapping_configuration_is_installed_and_documented
 ```
 
 ## 实机运行环境
@@ -107,7 +108,14 @@ source ~/warehouse_ws/install/setup.bash
 
 ## 推荐运行流程
 
-推荐优先使用统一入口 `bringup.launch.py`。
+推荐优先使用统一入口 `bringup.launch.py`。默认配置面向 VirtualBox Ubuntu amd64：
+
+```text
+gui:=true
+rviz:=true
+performance:=low
+route:=safe
+```
 
 ### 1. 启动仿真模式
 
@@ -159,7 +167,32 @@ ros2 topic echo /map --field header
 ros2 topic echo /submap_list
 ```
 
-### 4. 保存地图
+### 4. 自动巡航建图
+
+第一次在 VirtualBox 上测试自动建图时，先运行短路线：
+
+```bash
+cd ~/warehouse_ws
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+ros2 launch project bringup.launch.py mode:=slam_auto route:=safe gui:=true rviz:=true performance:=low dynamic_obstacles:=false
+```
+
+`route:=safe` 只用于确认自动巡航、防撞、`/cmd_vel` 和 Cartographer 正常。通过后，正式建图请切换到覆盖路线：
+
+```bash
+ros2 launch project bringup.launch.py mode:=slam_auto route:=coverage gui:=true rviz:=true performance:=low dynamic_obstacles:=false
+```
+
+如果地图边角或货架通道还不够完整，再运行更长路线：
+
+```bash
+ros2 launch project bringup.launch.py mode:=slam_auto route:=extended gui:=true rviz:=true performance:=low dynamic_obstacles:=false
+```
+
+自动巡航结束后不会自动保存地图。请等待 10-30 秒，让 Cartographer 完成最后的回环/位姿图优化，再检查 RViz 地图质量。
+
+### 5. 保存地图
 
 建图完成后执行：
 
@@ -175,7 +208,7 @@ maps/warehouse_map.yaml
 maps/warehouse_map.pgm
 ```
 
-### 5. 启动定位与导航
+### 6. 启动定位与导航
 
 必须先完成地图保存，再启动导航：
 
@@ -194,7 +227,7 @@ ros2 launch project bringup.launch.py mode:=nav map:=~/warehouse_ws/src/project/
 ros2 launch project nav.launch.py map:=~/warehouse_ws/src/project/maps/warehouse_map.yaml
 ```
 
-### 6. 运行多目标点导航
+### 7. 运行多目标点导航
 
 Nav2 启动并完成初始定位后，新终端执行：
 
@@ -205,7 +238,7 @@ source install/setup.bash
 ros2 run project waypoint_nav.py
 ```
 
-### 7. 可选 3D 建图
+### 8. 可选 3D 建图
 
 RTAB-Map 对内存要求较高，建议 16 GB 以上：
 
@@ -221,9 +254,9 @@ ros2 launch project rtabmap.launch.py
 ```text
 bringup.launch.py mode:=sim 启动仿真
 -> teleop_twist_keyboard 遥控机器人
--> bringup.launch.py mode:=slam 建图
+-> bringup.launch.py mode:=slam_auto route:=coverage 自动建图
 -> map_saver_cli 保存地图
--> bringup.launch.py mode:=nav 加载地图并导航
+-> bringup.launch.py mode:=nav dynamic_obstacles:=true 加载地图并导航
 -> waypoint_nav.py 执行多目标点导航
 ```
 
@@ -291,8 +324,12 @@ map -> odom -> base_footprint -> base_link
 
 - 各 launch 文件默认使用仿真时间。
 - 不要一开始直接运行导航，必须先生成 `maps/warehouse_map.yaml`。
+- `route:=safe` 是首次验证路线，正式建图应使用 `route:=coverage`，需要更精细地图时使用 `route:=extended`。
+- 建图阶段建议 `dynamic_obstacles:=false`，避免动态叉车污染地图。
+- 导航演示阶段建议 `dynamic_obstacles:=true`，用于展示动态避障。
 - `bringup.launch.py mode:=sim` 用于仿真检查。
 - `bringup.launch.py mode:=slam` 用于 2D 建图。
+- `bringup.launch.py mode:=slam_auto` 用于自动巡航 2D 建图。
 - `bringup.launch.py mode:=nav` 用于地图加载、AMCL 定位和 Nav2 导航。
 - `waypoint_nav.py` 需要在 Nav2 已经启动并可用后运行。
 - 当前 macOS 只能用于静态测试，不能替代 Ubuntu ROS2 实机验证。

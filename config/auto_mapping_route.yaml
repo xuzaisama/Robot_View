@@ -1,0 +1,44 @@
+routes:
+  safe:
+    description: "First-run validation route. Confirms cmd_vel, scan safety, and Cartographer output."
+    completion_hint: "Safe route completed. If RViz shows a growing map and the robot did not collide, rerun with route:=coverage for real mapping."
+    steps:
+      - {name: "initial_scan", linear_x: 0.0, angular_z: 0.30, duration: 8.0, pause: 0.5}
+      - {name: "short_forward", linear_x: 0.16, angular_z: 0.0, duration: 12.0, pause: 0.5}
+      - {name: "scan_right", linear_x: 0.0, angular_z: -0.30, duration: 5.0, pause: 0.5}
+      - {name: "short_return", linear_x: -0.10, angular_z: 0.0, duration: 6.0, pause: 0.5}
+      - {name: "final_scan", linear_x: 0.0, angular_z: 0.30, duration: 8.0, pause: 0.5}
+
+  coverage:
+    description: "Default full-mapping route. Slow corridor sweeps for the warehouse scene."
+    completion_hint: "Coverage route completed. Wait 10-30 seconds for Cartographer, inspect RViz, then save the map manually."
+    steps:
+      - {name: "initial_360_scan", linear_x: 0.0, angular_z: 0.26, duration: 24.0, pause: 0.8}
+      - {name: "east_main_corridor", linear_x: 0.18, angular_z: 0.0, duration: 65.0, pause: 0.8}
+      - {name: "loading_zone_scan", linear_x: 0.0, angular_z: 0.28, duration: 12.0, pause: 0.8}
+      - {name: "north_edge_sweep", linear_x: 0.12, angular_z: 0.20, duration: 28.0, pause: 0.8}
+      - {name: "west_upper_corridor", linear_x: 0.16, angular_z: 0.0, duration: 45.0, pause: 0.8}
+      - {name: "upper_scan", linear_x: 0.0, angular_z: -0.28, duration: 10.0, pause: 0.8}
+      - {name: "east_middle_corridor", linear_x: 0.16, angular_z: 0.0, duration: 48.0, pause: 0.8}
+      - {name: "middle_scan", linear_x: 0.0, angular_z: 0.28, duration: 10.0, pause: 0.8}
+      - {name: "west_lower_corridor", linear_x: 0.16, angular_z: 0.0, duration: 48.0, pause: 0.8}
+      - {name: "lower_scan", linear_x: 0.0, angular_z: -0.28, duration: 10.0, pause: 0.8}
+      - {name: "return_to_open_area", linear_x: 0.14, angular_z: 0.10, duration: 30.0, pause: 0.8}
+      - {name: "final_360_scan", linear_x: 0.0, angular_z: 0.26, duration: 24.0, pause: 0.8}
+
+  extended:
+    description: "Longer high-coverage route. Use after coverage if the saved map is missing corners or shelf aisles."
+    completion_hint: "Extended route completed. Wait 30 seconds for loop-closure optimization, inspect RViz, then save the map manually."
+    steps:
+      - {name: "initial_360_scan", linear_x: 0.0, angular_z: 0.24, duration: 27.0, pause: 1.0}
+      - {name: "east_main_corridor_slow", linear_x: 0.15, angular_z: 0.0, duration: 80.0, pause: 1.0}
+      - {name: "east_loading_sweep", linear_x: 0.10, angular_z: 0.18, duration: 35.0, pause: 1.0}
+      - {name: "west_upper_shelf_pass", linear_x: 0.14, angular_z: 0.0, duration: 65.0, pause: 1.0}
+      - {name: "upper_360_scan", linear_x: 0.0, angular_z: -0.24, duration: 27.0, pause: 1.0}
+      - {name: "east_upper_return", linear_x: 0.14, angular_z: 0.0, duration: 58.0, pause: 1.0}
+      - {name: "middle_shelf_pass", linear_x: 0.14, angular_z: -0.08, duration: 55.0, pause: 1.0}
+      - {name: "middle_360_scan", linear_x: 0.0, angular_z: 0.24, duration: 27.0, pause: 1.0}
+      - {name: "lower_shelf_pass", linear_x: 0.14, angular_z: 0.08, duration: 55.0, pause: 1.0}
+      - {name: "west_lower_return", linear_x: 0.14, angular_z: 0.0, duration: 58.0, pause: 1.0}
+      - {name: "diagonal_open_area_sweep", linear_x: 0.12, angular_z: 0.16, duration: 40.0, pause: 1.0}
+      - {name: "final_360_scan", linear_x: 0.0, angular_z: -0.24, duration: 27.0, pause: 1.0}

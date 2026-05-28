@@ -29,6 +29,7 @@ def test_python_files_compile():
         ROOT / "launch" / "nav.launch.py",
         ROOT / "launch" / "rtabmap.launch.py",
         ROOT / "scripts" / "waypoint_nav.py",
+        ROOT / "scripts" / "auto_mapping_patrol.py",
         ROOT / "scripts" / "forklift_controller.py",
         ROOT / "scripts" / "apriltag_detect.py",
         ROOT / "scripts" / "spawn_robot.py",
@@ -115,8 +116,11 @@ def test_manifest_declares_runtime_dependencies():
         "nav2_smac_planner",
         "dwb_core",
         "dwb_critics",
+        "ament_index_python",
     }
     assert required <= deps
+    exec_deps = {element.text for element in root.findall("exec_depend")}
+    assert "python3-yaml" in exec_deps
 
 
 def test_spawn_launch_uses_world_launch_argument():
@@ -137,12 +141,18 @@ def test_bringup_has_modes_and_map_validation():
     source = (ROOT / "bringup.launch.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
 
-    assert 'choices=["sim", "slam", "nav"]' in source
+    assert 'choices=["sim", "slam", "slam_auto", "nav"]' in source
+    assert '"gui"' in source
+    assert '"rviz"' in source
+    assert '"performance"' in source
+    assert '"route"' in source
+    assert '"dynamic_obstacles"' in source
     assert 'OpaqueFunction(function=validate_nav_map)' in source
     assert 'Shutdown(reason="navigation map is missing")' in source
-    assert 'condition=mode_is("slam")' in source
-    assert 'condition=mode_is("nav")' in source
-    assert 'condition=mode_in(["sim", "nav"])' in source
+    assert "auto_mapping_patrol.py" in source
+    assert "auto_mapping_route.yaml" in source
+    assert "slam_auto" in source
+    assert "performance" in source and "low" in source and "normal" in source
 
     assigned_world_launch_config = any(
         isinstance(node, ast.Assign)
@@ -176,7 +186,10 @@ def test_referenced_project_files_exist():
         ROOT / "launch" / "nav.launch.py",
         ROOT / "launch" / "rtabmap.launch.py",
         ROOT / "scripts" / "waypoint_nav.py",
+        ROOT / "scripts" / "auto_mapping_patrol.py",
         ROOT / "scripts" / "forklift_controller.py",
+        ROOT / "config" / "auto_mapping_route.yaml",
+        ROOT / "docs" / "验收清单.md",
     ]
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
     assert not missing, f"missing project files: {missing}"
@@ -189,11 +202,13 @@ def test_readme_documents_current_bringup_flow():
         "python3 tests/static_checks.py",
         "ros2 launch project bringup.launch.py mode:=sim",
         "ros2 launch project bringup.launch.py mode:=slam",
+        "ros2 launch project bringup.launch.py mode:=slam_auto",
         "ros2 launch project bringup.launch.py mode:=nav",
         "ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map",
         "ros2 run project waypoint_nav.py",
         "mode:=nav` 直接退出",
         "PASS test_readme_documents_current_bringup_flow",
+        "PASS test_auto_mapping_configuration_is_installed_and_documented",
         "docs/验收清单.md",
     ]
     missing = [snippet for snippet in required_snippets if snippet not in readme]
@@ -211,16 +226,48 @@ def test_acceptance_checklist_documents_runtime_validation():
         "ros2 launch project bringup.launch.py mode:=sim",
         "ros2 run tf2_ros tf2_echo odom base_footprint",
         "ros2 launch project bringup.launch.py mode:=slam",
+        "ros2 launch project bringup.launch.py mode:=slam_auto",
         "ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map",
         "ros2 launch project bringup.launch.py mode:=nav",
         "ros2 run project waypoint_nav.py",
         "ros2 launch project rtabmap.launch.py",
-        "10 项测试全部输出 `PASS`",
+        "11 项测试全部输出 `PASS`",
         "成功标准",
         "失败时优先检查",
     ]
     missing = [snippet for snippet in required_snippets if snippet not in checklist]
     assert not missing, f"acceptance checklist missing snippets: {missing}"
+
+
+def test_auto_mapping_configuration_is_installed_and_documented():
+    config = load_yaml(ROOT / "config" / "auto_mapping_route.yaml")
+    routes = config["routes"]
+    assert set(routes) == {"safe", "coverage", "extended"}
+
+    safe_duration = sum(float(step["duration"]) for step in routes["safe"]["steps"])
+    coverage_duration = sum(float(step["duration"]) for step in routes["coverage"]["steps"])
+    extended_duration = sum(float(step["duration"]) for step in routes["extended"]["steps"])
+    assert 30.0 <= safe_duration <= 60.0
+    assert 300.0 <= coverage_duration <= 480.0
+    assert 480.0 <= extended_duration <= 720.0
+
+    cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+    assert "scripts/auto_mapping_patrol.py" in cmake
+    assert "bringup.launch.py" in cmake
+    assert "docs" in cmake
+
+    robot = (ROOT / "description" / "robot.xacro").read_text(encoding="utf-8")
+    for snippet in [
+        'name="lidar_samples"',
+        'name="lidar_update_rate"',
+        'name="camera_width"',
+        'name="camera_height"',
+        'name="camera_update_rate"',
+        'name="imu_update_rate"',
+        "$(arg lidar_samples)",
+        "$(arg camera_width)",
+    ]:
+        assert snippet in robot
 
 
 def run_all():
@@ -235,6 +282,7 @@ def run_all():
         test_referenced_project_files_exist,
         test_readme_documents_current_bringup_flow,
         test_acceptance_checklist_documents_runtime_validation,
+        test_auto_mapping_configuration_is_installed_and_documented,
     ]
     for test in tests:
         test()
