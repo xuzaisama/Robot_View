@@ -2,7 +2,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
-from launch.substitutions import Command
+from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -19,9 +19,10 @@ def generate_launch_description():
     declare_world = DeclareLaunchArgument(
         "world", default_value=world_path
     )
+    world = LaunchConfiguration("world")
 
     gazebo = ExecuteProcess(
-        cmd=["xvfb-run", "-s", "-screen 0 1280x1024x24", "gazebo", "--verbose", world_path,
+        cmd=["xvfb-run", "-s", "-screen 0 1280x1024x24", "gazebo", "--verbose", world,
              "-s", "libgazebo_ros_factory.so"],
         output="screen",
     )

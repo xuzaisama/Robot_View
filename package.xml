@@ -19,6 +19,8 @@
   <depend>nav2_msgs</depend>
   <depend>gazebo_msgs</depend>
   <depend>tf2_ros</depend>
+  <depend>xacro</depend>
+  <depend>rviz2</depend>
   <depend>robot_state_publisher</depend>
   <depend>joint_state_publisher</depend>
   <depend>gazebo_ros</depend>
@@ -33,6 +35,11 @@
   <depend>nav2_waypoint_follower</depend>
   <depend>nav2_velocity_smoother</depend>
   <depend>nav2_costmap_2d</depend>
+  <depend>nav2_smac_planner</depend>
+  <depend>dwb_core</depend>
+  <depend>dwb_critics</depend>
+  <depend>rtabmap_slam</depend>
+  <depend>rtabmap_viz</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -9,7 +9,20 @@ from rclpy.node import Node
 from gazebo_msgs.srv import SetEntityState
 from gazebo_msgs.msg import EntityState
 from geometry_msgs.msg import Pose, Twist
-import time
+
+
+def advance_along_y(current_y, direction, speed, dt, y_min, y_max):
+    next_y = current_y + direction * speed * dt
+    next_direction = direction
+
+    if next_y <= y_min:
+        next_y = y_min
+        next_direction = 1
+    elif next_y >= y_max:
+        next_y = y_max
+        next_direction = -1
+
+    return next_y, next_direction
 
 
 class ForkliftController(Node):
@@ -21,34 +34,32 @@ class ForkliftController(Node):
             self.get_logger().info("Waiting for /set_entity_state service...")
 
         self.timer = self.create_timer(0.05, self.timer_callback)
-        self.start_time = self.get_clock().now()
+        self.last_update = self.get_clock().now()
 
         # Movement params
-        self.y_min = 3.0   # top end
-        self.y_max = -3.0   # bottom end (forklift moves along y in main corridor)
+        self.y_min = -3.0   # bottom end
+        self.y_max = 3.0    # top end
         self.speed = 0.6    # m/s
-        self.direction = -1  # start moving toward y_min
+        self.direction = -1  # start moving toward the bottom end
 
         self.x = 5.0  # fixed x in main corridor
-        self.current_y = 3.5  # start position
+        self.current_y = 3.0  # start at the top boundary
 
         self.get_logger().info("Forklift controller started - moving in main corridor")
 
     def timer_callback(self):
         now = self.get_clock().now()
-        dt = (now - self.start_time).nanoseconds * 1e-9
-        self.start_time = now
+        dt = (now - self.last_update).nanoseconds * 1e-9
+        self.last_update = now
 
-        # Update position
-        self.current_y += self.direction * self.speed * 0.05  # 0.05s step
-
-        # Reverse at bounds
-        if self.current_y <= self.y_min:
-            self.current_y = self.y_min
-            self.direction = 1
-        elif self.current_y >= self.y_max:
-            self.current_y = self.y_max
-            self.direction = -1
+        self.current_y, self.direction = advance_along_y(
+            self.current_y,
+            self.direction,
+            self.speed,
+            dt,
+            self.y_min,
+            self.y_max,
+        )
 
         # Send state to Gazebo
         req = SetEntityState.Request()
