@@ -133,6 +133,55 @@ def test_spawn_launch_uses_world_launch_argument():
     assert '"--verbose", world,' in source
 
 
+def test_bringup_has_modes_and_map_validation():
+    source = (ROOT / "bringup.launch.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    assert 'choices=["sim", "slam", "nav"]' in source
+    assert 'OpaqueFunction(function=validate_nav_map)' in source
+    assert 'Shutdown(reason="navigation map is missing")' in source
+    assert 'condition=mode_is("slam")' in source
+    assert 'condition=mode_is("nav")' in source
+    assert 'condition=mode_in(["sim", "nav"])' in source
+
+    assigned_world_launch_config = any(
+        isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "world" for target in node.targets)
+        and isinstance(node.value, ast.Call)
+        and getattr(node.value.func, "id", "") == "LaunchConfiguration"
+        for node in ast.walk(tree)
+    )
+    assert assigned_world_launch_config
+
+
+def test_nav_launch_checks_map_before_starting_nav2():
+    source = (ROOT / "launch" / "nav.launch.py").read_text(encoding="utf-8")
+
+    assert "def validate_map_file(context):" in source
+    assert 'OpaqueFunction(function=validate_map_file)' in source
+    assert 'Shutdown(reason="navigation map is missing")' in source
+
+
+def test_referenced_project_files_exist():
+    required = [
+        ROOT / "config" / "amcl.yaml",
+        ROOT / "config" / "cartographer.lua",
+        ROOT / "config" / "nav2.yaml",
+        ROOT / "config" / "nav.rviz",
+        ROOT / "config" / "slam.rviz",
+        ROOT / "description" / "robot.xacro",
+        ROOT / "worlds" / "warehouse.world",
+        ROOT / "launch" / "spawn.launch.py",
+        ROOT / "launch" / "slam.launch.py",
+        ROOT / "launch" / "nav.launch.py",
+        ROOT / "launch" / "rtabmap.launch.py",
+        ROOT / "scripts" / "waypoint_nav.py",
+        ROOT / "scripts" / "forklift_controller.py",
+    ]
+    missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
+    assert not missing, f"missing project files: {missing}"
+
+
 def run_all():
     tests = [
         test_python_files_compile,
@@ -140,6 +189,9 @@ def run_all():
         test_nav2_config_uses_humble_plugin_keys,
         test_manifest_declares_runtime_dependencies,
         test_spawn_launch_uses_world_launch_argument,
+        test_bringup_has_modes_and_map_validation,
+        test_nav_launch_checks_map_before_starting_nav2,
+        test_referenced_project_files_exist,
     ]
     for test in tests:
         test()

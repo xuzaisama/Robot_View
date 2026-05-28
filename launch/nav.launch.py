@@ -1,9 +1,24 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, LogInfo, OpaqueFunction, Shutdown
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+
+
+def validate_map_file(context):
+    map_path = os.path.expanduser(LaunchConfiguration("map").perform(context))
+    if os.path.exists(map_path):
+        return []
+
+    return [
+        LogInfo(msg=[
+            "Navigation map not found: ", map_path,
+            ". Run slam.launch.py first, then save a map with: ",
+            "ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map",
+        ]),
+        Shutdown(reason="navigation map is missing"),
+    ]
 
 
 def generate_launch_description():
@@ -152,6 +167,7 @@ def generate_launch_description():
     return LaunchDescription([
         declare_use_sim_time,
         declare_map,
+        OpaqueFunction(function=validate_map_file),
         map_server,
         lifecycle_map,
         amcl,
