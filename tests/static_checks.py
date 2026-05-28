@@ -194,9 +194,33 @@ def test_readme_documents_current_bringup_flow():
         "ros2 run project waypoint_nav.py",
         "mode:=nav` 直接退出",
         "PASS test_readme_documents_current_bringup_flow",
+        "docs/验收清单.md",
     ]
     missing = [snippet for snippet in required_snippets if snippet not in readme]
     assert not missing, f"README missing snippets: {missing}"
+
+
+def test_acceptance_checklist_documents_runtime_validation():
+    checklist_path = ROOT / "docs" / "验收清单.md"
+    assert checklist_path.exists()
+    checklist = checklist_path.read_text(encoding="utf-8")
+
+    required_snippets = [
+        "python3 tests/static_checks.py",
+        "colcon build --symlink-install",
+        "ros2 launch project bringup.launch.py mode:=sim",
+        "ros2 run tf2_ros tf2_echo odom base_footprint",
+        "ros2 launch project bringup.launch.py mode:=slam",
+        "ros2 run nav2_map_server map_saver_cli -f ~/warehouse_ws/src/project/maps/warehouse_map",
+        "ros2 launch project bringup.launch.py mode:=nav",
+        "ros2 run project waypoint_nav.py",
+        "ros2 launch project rtabmap.launch.py",
+        "10 项测试全部输出 `PASS`",
+        "成功标准",
+        "失败时优先检查",
+    ]
+    missing = [snippet for snippet in required_snippets if snippet not in checklist]
+    assert not missing, f"acceptance checklist missing snippets: {missing}"
 
 
 def run_all():
@@ -210,6 +234,7 @@ def run_all():
         test_nav_launch_checks_map_before_starting_nav2,
         test_referenced_project_files_exist,
         test_readme_documents_current_bringup_flow,
+        test_acceptance_checklist_documents_runtime_validation,
     ]
     for test in tests:
         test()

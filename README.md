@@ -37,6 +37,7 @@ PASS test_bringup_has_modes_and_map_validation
 PASS test_nav_launch_checks_map_before_starting_nav2
 PASS test_referenced_project_files_exist
 PASS test_readme_documents_current_bringup_flow
+PASS test_acceptance_checklist_documents_runtime_validation
 ```
 
 ## 实机运行环境
@@ -225,6 +226,10 @@ bringup.launch.py mode:=sim 启动仿真
 -> bringup.launch.py mode:=nav 加载地图并导航
 -> waypoint_nav.py 执行多目标点导航
 ```
+
+## 联调与验收
+
+Ubuntu 实机联调时，请按 [docs/验收清单.md](docs/验收清单.md) 逐项检查。清单包含编译、仿真、TF、遥控、SLAM、地图保存、Nav2 导航、多目标点导航和 RTAB-Map 的成功标准与排错入口。
 
 ## 项目结构
 
