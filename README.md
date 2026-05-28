@@ -1,5 +1,7 @@
 # 仓储机器人视觉导航系统
 
+> 新设备上的 Codex 请先读 [CODEX_HANDOFF.md](CODEX_HANDOFF.md)，再按 [docs/验收清单.md](docs/验收清单.md) 联调。
+
 这是一个基于 ROS2 Humble 的仓储机器人仿真项目，用于演示从传感器仿真、2D/3D 建图、地图保存、AMCL 定位到 Nav2 自主导航的完整流程。
 
 项目包含 Gazebo 仓储场景、差速驱动机器人、LiDAR、RGB-D 相机、IMU、Cartographer、RTAB-Map、AMCL、Nav2 和多目标点导航脚本。
@@ -13,7 +15,7 @@
 - 基于 AMCL 的地图加载、定位和重定位
 - 基于 Nav2 的路径规划、自主导航和动态避障
 - 多目标点导航脚本
-- `bringup.launch.py` 统一启动入口，支持 `sim`、`slam`、`nav` 三种模式
+- `bringup.launch.py` 统一启动入口，支持 `sim`、`slam`、`slam_auto`、`nav` 四种模式
 - 无 ROS 环境下可运行的静态回归测试
 
 ## 当前 macOS 可做的检查
@@ -39,6 +41,7 @@ PASS test_referenced_project_files_exist
 PASS test_readme_documents_current_bringup_flow
 PASS test_acceptance_checklist_documents_runtime_validation
 PASS test_auto_mapping_configuration_is_installed_and_documented
+PASS test_codex_handoff_documents_next_steps
 ```
 
 ## 实机运行环境

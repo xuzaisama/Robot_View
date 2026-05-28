@@ -209,6 +209,7 @@ def test_readme_documents_current_bringup_flow():
         "mode:=nav` 直接退出",
         "PASS test_readme_documents_current_bringup_flow",
         "PASS test_auto_mapping_configuration_is_installed_and_documented",
+        "PASS test_codex_handoff_documents_next_steps",
         "docs/验收清单.md",
     ]
     missing = [snippet for snippet in required_snippets if snippet not in readme]
@@ -231,7 +232,8 @@ def test_acceptance_checklist_documents_runtime_validation():
         "ros2 launch project bringup.launch.py mode:=nav",
         "ros2 run project waypoint_nav.py",
         "ros2 launch project rtabmap.launch.py",
-        "11 项测试全部输出 `PASS`",
+        "12 项测试全部输出 `PASS`",
+        "mode:=sim|slam|slam_auto|nav",
         "成功标准",
         "失败时优先检查",
     ]
@@ -270,6 +272,31 @@ def test_auto_mapping_configuration_is_installed_and_documented():
         assert snippet in robot
 
 
+def test_codex_handoff_documents_next_steps():
+    handoff_path = ROOT / "CODEX_HANDOFF.md"
+    assert handoff_path.exists()
+    handoff = handoff_path.read_text(encoding="utf-8")
+
+    required_snippets = [
+        "VirtualBox",
+        "python3 tests/static_checks.py",
+        "PASS test_spawn_launch_uses_world_launch_argument",
+        "colcon build --symlink-install",
+        "mode:=sim",
+        "mode:=slam_auto route:=safe",
+        "mode:=slam_auto route:=coverage",
+        "map_saver_cli",
+        "mode:=nav",
+        "waypoint_nav.py",
+        "不要建图阶段启动 dynamic_obstacles:=true",
+    ]
+    missing = [snippet for snippet in required_snippets if snippet not in handoff]
+    assert not missing, f"Codex handoff missing snippets: {missing}"
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "CODEX_HANDOFF.md" in readme
+
+
 def run_all():
     tests = [
         test_python_files_compile,
@@ -283,6 +310,7 @@ def run_all():
         test_readme_documents_current_bringup_flow,
         test_acceptance_checklist_documents_runtime_validation,
         test_auto_mapping_configuration_is_installed_and_documented,
+        test_codex_handoff_documents_next_steps,
     ]
     for test in tests:
         test()
