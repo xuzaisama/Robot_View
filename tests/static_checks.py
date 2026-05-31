@@ -137,6 +137,31 @@ def test_spawn_launch_uses_world_launch_argument():
     assert '"--verbose", world,' in source
 
 
+def test_robot_wheels_are_spawned_on_ground():
+    source = (ROOT / "description" / "robot.xacro").read_text(encoding="utf-8")
+    tree = ET.fromstring(source)
+
+    def joint_origin_z(joint_name):
+        joint = tree.find(f".//joint[@name='{joint_name}']")
+        assert joint is not None
+        origin = joint.find("origin")
+        assert origin is not None
+        return float(origin.attrib["xyz"].split()[2])
+
+    base_z = joint_origin_z("base_footprint_joint")
+    wheel_radius = 0.075
+    caster_radius = 0.04
+
+    assert abs(base_z + joint_origin_z("left_wheel_joint") - wheel_radius) < 1e-9
+    assert abs(base_z + joint_origin_z("right_wheel_joint") - wheel_radius) < 1e-9
+    assert abs(base_z + joint_origin_z("caster_wheel_joint") - caster_radius) < 1e-9
+
+    for launch_file in [ROOT / "bringup.launch.py", ROOT / "launch" / "spawn.launch.py"]:
+        launch_source = launch_file.read_text(encoding="utf-8")
+        assert '"-z", "0.0"' in launch_source
+        assert '"-z", "0.1"' not in launch_source
+
+
 def test_bringup_has_modes_and_map_validation():
     source = (ROOT / "bringup.launch.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
@@ -304,6 +329,7 @@ def run_all():
         test_nav2_config_uses_humble_plugin_keys,
         test_manifest_declares_runtime_dependencies,
         test_spawn_launch_uses_world_launch_argument,
+        test_robot_wheels_are_spawned_on_ground,
         test_bringup_has_modes_and_map_validation,
         test_nav_launch_checks_map_before_starting_nav2,
         test_referenced_project_files_exist,

@@ -257,7 +257,7 @@
   <joint name="left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="left_wheel_link"/>
-    <origin xyz="0 0.18 -0.04" rpy="0 0 0"/>
+    <origin xyz="0 0.18 0.025" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
   </joint>
 
@@ -281,7 +281,7 @@
   <joint name="right_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="right_wheel_link"/>
-    <origin xyz="0 -0.18 -0.04" rpy="0 0 0"/>
+    <origin xyz="0 -0.18 0.025" rpy="0 0 0"/>
     <axis xyz="0 -1 0"/>
   </joint>
 
@@ -304,7 +304,7 @@
   <joint name="caster_wheel_joint" type="fixed">
     <parent link="base_link"/>
     <child link="caster_wheel_link"/>
-    <origin xyz="-0.2 0 -0.09" rpy="0 0 0"/>
+    <origin xyz="-0.2 0 -0.01" rpy="0 0 0"/>
   </joint>
 
   <!-- ========== Diff Drive Plugin ========== -->

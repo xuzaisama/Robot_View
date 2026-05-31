@@ -170,7 +170,7 @@ def generate_launch_description():
         arguments=[
             "-entity", "warehouse_robot",
             "-topic", "robot_description",
-            "-x", "-8.0", "-y", "0.0", "-z", "0.1", "-Y", "0.0",
+            "-x", "-8.0", "-y", "0.0", "-z", "0.0", "-Y", "0.0",
         ],
         output="screen",
     )
